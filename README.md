@@ -7,6 +7,7 @@ PDF / DOCX / PPTX / XLSX / HTML / CSV / XML を 1 つのエンドポイントで
 
 - **利用ガイド（セットアップ〜基本的な使い方、公式リンク付き）: [`docs/guide/`](docs/guide/README.md)**
 - 仕様・基本設計: [`docs/SPEC-RAG-2026-001.md`](docs/SPEC-RAG-2026-001.md)
+- 位置づけとハブ取り込み（RAG 特化の検証リポジトリ）: [`docs/hub-intake.md`](docs/hub-intake.md)
 
 既定モデルは IBM Granite に統一しています。中国製の LLM・埋め込み・OCR モデルは使用しません（`tests/unit/test_model_policy.py` で検査）。
 
