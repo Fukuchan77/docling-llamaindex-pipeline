@@ -102,13 +102,16 @@ def test_missing_credentials_are_reported(settings_factory: SettingsFactory) -> 
 
 
 def test_ollama_llm(settings_factory: SettingsFactory) -> None:
-    settings = settings_factory(ollama_llm_model="m-chat", ollama_request_timeout=30)
+    settings = settings_factory(
+        ollama_llm_model="m-chat", ollama_request_timeout=30, ollama_context_window=4096
+    )
 
     llm = build_llm(settings)
 
     assert isinstance(llm, Ollama)
     assert llm.model == "m-chat"
     assert llm.request_timeout == 30
+    assert llm.context_window == 4096
 
 
 def test_openai_llm(settings_factory: SettingsFactory) -> None:

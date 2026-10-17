@@ -36,6 +36,7 @@ def main() -> None:
         model=settings.ollama_llm_model,
         base_url=settings.ollama_base_url,
         request_timeout=settings.ollama_request_timeout,
+        context_window=settings.ollama_context_window,
         temperature=0.1,
     )
     response = llm.complete(

@@ -142,6 +142,7 @@ def build_llm(settings: Settings) -> LLM:
                 model=settings.ollama_llm_model,
                 base_url=settings.ollama_base_url,
                 request_timeout=settings.ollama_request_timeout,
+                context_window=settings.ollama_context_window,
             )
         case LLMProvider.OPENAI:
             try:

@@ -70,6 +70,9 @@ class Settings(BaseSettings):
             is multilingual (incl. Japanese), 768-dimensional, 512-token context.
         ollama_llm_model: Ollama chat model tag.
         ollama_request_timeout: Seconds the Ollama LLM client waits per call.
+        ollama_context_window: ``num_ctx`` sent to Ollama. Left unset, LlamaIndex
+            uses the model maximum (131072 for granite4.2), which spills the KV
+            cache onto the CPU and makes calls time out.
         watsonx_apikey: IBM Cloud API key (required for ``ibm`` embeddings).
         watsonx_url: watsonx.ai regional endpoint.
         watsonx_project_id: watsonx.ai project ID (required for ``ibm``).
@@ -129,6 +132,7 @@ class Settings(BaseSettings):
     ollama_embed_model: str = "granite-embedding:278m"
     ollama_llm_model: str = "granite4.2:latest"
     ollama_request_timeout: float = Field(default=120.0, gt=0)
+    ollama_context_window: int = Field(default=8192, gt=0)
 
     watsonx_apikey: SecretStr | None = None
     watsonx_url: str = "https://us-south.ml.cloud.ibm.com"
