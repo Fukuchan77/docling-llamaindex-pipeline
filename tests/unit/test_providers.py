@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 import pytest
 from llama_index.embeddings.ollama import OllamaEmbedding
 from llama_index.embeddings.openai import OpenAIEmbedding
+from llama_index.llms.anthropic import Anthropic
 from llama_index.llms.ollama import Ollama
 from llama_index.llms.openai import OpenAI
 
@@ -142,3 +143,24 @@ def _block_import(monkeypatch: pytest.MonkeyPatch, blocked: str) -> None:
         return real_import(name, *args, **kwargs)
 
     monkeypatch.setattr(builtins, "__import__", _import)
+
+
+def test_anthropic_llm(settings_factory: SettingsFactory) -> None:
+    settings = settings_factory(
+        llm_provider="anthropic", anthropic_api_key="sk-ant", anthropic_llm_model="c"
+    )
+
+    llm = build_llm(settings)
+
+    assert isinstance(llm, Anthropic)
+    assert llm.model == "c"
+
+
+def test_anthropic_llm_missing_extra(
+    settings_factory: SettingsFactory, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    settings = settings_factory(llm_provider="anthropic", anthropic_api_key="sk-ant")
+    _block_import(monkeypatch, "llama_index.llms.anthropic")
+
+    with pytest.raises(ProviderConfigurationError, match="--extra anthropic"):
+        build_llm(settings)

@@ -41,6 +41,7 @@ mise run setup     # = uv sync --all-extras --all-groups && uv run pre-commit in
 | 開発（テスト一式を含む） | `mise run setup` |
 | Ollama だけで運用 | `uv sync --no-dev` |
 | OpenAI へ切り替える可能性がある | `uv sync --no-dev --extra openai` |
+| 回答生成に Anthropic を使う可能性がある | `uv sync --no-dev --extra anthropic` |
 | IBM watsonx.ai へ切り替える可能性がある | `uv sync --no-dev --extra ibm` |
 | Apple Silicon で Granite-Docling（VLM）を MLX で高速に動かす | `uv sync --no-dev --extra mlx`（[2.2](02-components.md#22-docling-granite-docling-258mvlm-で変換する)） |
 

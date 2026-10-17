@@ -35,7 +35,7 @@ status は `proposed` / `verified` / `landed` / `rejected` のいずれか。完
 
 | ID | 変更 | status | 根拠・次の条件 |
 | :--- | :--- | :--- | :--- |
-| R1 | Anthropic LLM プロバイダの追加 | proposed | 2026-10-17 に計画。未実装 |
+| R1 | Anthropic LLM プロバイダの追加 | landed | 2026-10-17 に実装（`LLM_PROVIDER=anthropic`、extra `anthropic`）。実 API での疎通は未確認 |
 | R2 | ライブ検証（実 Ollama / Docling モデル。`mise run test:integration`） | proposed | 未実行。PR #1 は hermetic な単体テストのみ green |
 | R3 | BBox 付き出典（`grounding.py`）をハブ `services/agent` の `/parse` locator と突き合わせ | proposed | ハブ側の locator は `{source, locator, ordinal, text}`。R2 の後に差分を確認 |
 | R4 | OCR エンジン固定（`DOCLING_OCR_ENGINE`） | proposed | Docling 自動選択が RapidOCR（PaddleOCR 由来）を選びうるため。ハブ `services/agent` の Docling 設定と比較 |
