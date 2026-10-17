@@ -6,6 +6,8 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import pytest
+from docling_core.transforms.chunker.tokenizer.huggingface import HuggingFaceTokenizer
 from fastapi.testclient import TestClient
 
 import docling_llamaindex_pipeline
@@ -14,23 +16,41 @@ from docling_llamaindex_pipeline.config import Settings
 from docling_llamaindex_pipeline.parsing import DoclingDocumentParser
 
 if TYPE_CHECKING:
-    import pytest
-
     from tests.conftest import HarnessFactory, SettingsFactory
 
 SRC = Path(docling_llamaindex_pipeline.__file__).parent
 
 
 def test_default_wiring_boots_without_any_model_server(settings_factory: SettingsFactory) -> None:
-    app = create_app(settings_factory())
+    app = create_app(settings_factory(chunker="hierarchical"))
 
     with TestClient(app) as client:
         health = client.get("/health")
         container = app.state.container
 
     assert health.status_code == 200
-    assert health.json()["embedding_model"] == "bge-m3"
+    assert health.json()["embedding_model"] == "granite-embedding:278m"
     assert isinstance(container.parser, DoclingDocumentParser)
+
+
+def test_unavailable_chunk_tokenizer_fails_startup(
+    settings_factory: SettingsFactory, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The default hybrid chunker needs its tokenizer; when it cannot load, startup fails loudly."""
+
+    def _offline(*_: object, **__: object) -> None:
+        raise OSError("We couldn't connect to 'https://huggingface.co'")
+
+    monkeypatch.setattr(HuggingFaceTokenizer, "from_pretrained", _offline)
+    app = create_app(settings_factory())
+
+    with (
+        pytest.raises(
+            RuntimeError, match=r"(?s)Could not load chunk tokenizer .*CHUNKER=hierarchical"
+        ),
+        TestClient(app),
+    ):
+        pass  # pragma: no cover — startup raises first.
 
 
 def test_cors_disabled_by_default(harness_factory: HarnessFactory) -> None:
@@ -105,9 +125,9 @@ def test_default_model_ids_live_only_in_config() -> None:
     defaults = {
         str(field.default)
         for name, field in Settings.model_fields.items()
-        if name.endswith(("_model", "_embed_model", "_llm_model"))
+        if name.endswith(("_model", "_embed_model", "_llm_model", "_tokenizer"))
     }
-    assert "bge-m3" in defaults
+    assert {"granite4.2:latest", "granite-embedding:278m"} <= defaults
 
     offenders = [
         f"{path.relative_to(SRC)}: {model_id}"

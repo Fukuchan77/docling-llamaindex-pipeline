@@ -19,6 +19,11 @@ file covers commands, invariants, and the "why" behind non-obvious choices.
   `tests/support/` (`KeywordEmbedding`, `FixedLLM`, `FakeParser`) and inject them through
   `create_app(container_factory=...)` — see `tests/conftest.py::harness_factory`.
 - Model IDs appear only as defaults in `config.py` (`tests/unit/test_app.py::test_default_model_ids_live_only_in_config`).
+- Model policy: defaults are IBM Granite (`granite4.2:latest`, `granite-embedding:278m`); no model
+  developed in China may appear in defaults, `src/`/`examples/` code strings, `.env.example`,
+  `mise.toml` or CI (`tests/unit/test_model_policy.py`). OCR is pinned (`DOCLING_OCR_ENGINE`)
+  because Docling's auto mode can pick PaddleOCR-derived RapidOCR; the VLM preset is pinned to
+  Granite-Docling for the same reason.
 - `DeprecationWarning` is an error under pytest; any ignore must be scoped to its emitting module
   with a comment.
 - Coverage ratchet: `fail_under = 98`.
@@ -36,6 +41,10 @@ file covers commands, invariants, and the "why" behind non-obvious choices.
 - FastAPI evaluates route annotations at runtime, so `api/**` is exempt from ruff's TC00x rules.
 - `starlette.testclient` needs `httpx2` (dev dependency) for typed, warning-free tests.
 - `mise run audit` ignores PYSEC-2026-3740 (nltk, unreachable, no fix release) — review by 2026-11-05.
+- Chunking defaults to `HybridChunker` with the embedding model's HF tokenizer (512 tokens for
+  `granite-embedding:278m`), loaded at startup; unit tests use `CHUNKER=hierarchical` or a fake
+  `BaseTokenizer`. Startup fails loudly if the tokenizer cannot be loaded.
+- `examples/` are runnable docs referenced by `docs/guide/`; ruff + pyright + ty check them.
 
 ## Layout / gotchas
 - `src/` layout with the `uv_build` backend: package dir must be `docling_llamaindex_pipeline`.

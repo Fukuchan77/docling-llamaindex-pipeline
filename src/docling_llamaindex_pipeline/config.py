@@ -10,8 +10,15 @@ startup, rather than on the first request:
   hot-swap endpoint wipes the index, so it must not be left open).
 
 This module is the only place in ``src/`` allowed to carry default model IDs
-(``tests/unit/test_no_hardcoded_model_ids.py`` enforces that); every other
-module reads them from :class:`Settings`.
+(``tests/unit/test_app.py::test_default_model_ids_live_only_in_config``
+enforces that); every other module reads them from :class:`Settings`.
+
+Model policy: every default is an IBM Granite model (generation, embeddings,
+the chunking tokenizer, Docling's layout / TableFormer / Granite-Docling
+models), and no default selects a model developed in China
+(``tests/unit/test_model_policy.py``). That is also why OCR is pinned to an
+explicit engine instead of Docling's auto-selection, which picks RapidOCR
+(PaddleOCR-derived models) on Linux when it is installed.
 
 ``get_settings()`` returns a process-wide singleton. Tests build
 :class:`Settings` directly (with ``_env_file=None``) and inject it into
@@ -59,7 +66,8 @@ class Settings(BaseSettings):
         embedding_provider: Embedding backend active at boot.
         llm_provider: LLM backend used for answer synthesis.
         ollama_base_url: Ollama daemon base URL (no ``/v1`` suffix).
-        ollama_embed_model: Ollama embedding model tag.
+        ollama_embed_model: Ollama embedding model tag. ``granite-embedding:278m``
+            is multilingual (incl. Japanese), 768-dimensional, 512-token context.
         ollama_llm_model: Ollama chat model tag.
         ollama_request_timeout: Seconds the Ollama LLM client waits per call.
         watsonx_apikey: IBM Cloud API key (required for ``ibm`` embeddings).
@@ -77,10 +85,22 @@ class Settings(BaseSettings):
         query_timeout_seconds: Seconds ``POST /api/v1/query`` may take before
             it is aborted with HTTP 504.
         docling_do_ocr: Run OCR on bitmap content of PDFs / images.
+        docling_ocr_engine: OCR engine. ``tesseract`` needs the ``tesseract``
+            binary (and its language packs); ``easyocr`` needs the ``easyocr``
+            package.
+        docling_ocr_lang: OCR languages as ``iso:`` tags, which Docling maps
+            to each engine's own codes.
         docling_do_table_structure: Run TableFormer table-structure recovery.
         docling_device: Accelerator for Docling's models.
         docling_artifacts_path: Pre-downloaded Docling model directory. Set it
             for air-gapped deployments so no model is fetched at runtime.
+        chunker: ``hybrid`` splits Docling's structural chunks further so
+            none exceeds ``chunk_max_tokens`` of ``chunk_tokenizer``;
+            ``hierarchical`` keeps one chunk per document element with no
+            token limit (no tokenizer download).
+        chunk_tokenizer: Hugging Face tokenizer matching the embedding model.
+        chunk_max_tokens: Token budget per chunk; keep it at or below the
+            embedding model's context, or the server truncates the input.
         cors_allow_origins: Allowed CORS origins. Empty disables CORS.
         admin_api_key: When set, ``POST /api/v1/config/embedding`` requires a
             matching ``X-Admin-Token`` header.
@@ -106,8 +126,8 @@ class Settings(BaseSettings):
     llm_provider: LLMProvider = LLMProvider.OLLAMA
 
     ollama_base_url: str = "http://localhost:11434"
-    ollama_embed_model: str = "bge-m3"
-    ollama_llm_model: str = "llama3.1:8b"
+    ollama_embed_model: str = "granite-embedding:278m"
+    ollama_llm_model: str = "granite4.2:latest"
     ollama_request_timeout: float = Field(default=120.0, gt=0)
 
     watsonx_apikey: SecretStr | None = None
@@ -125,9 +145,15 @@ class Settings(BaseSettings):
     query_timeout_seconds: float = Field(default=120.0, gt=0)
 
     docling_do_ocr: bool = True
+    docling_ocr_engine: Literal["tesseract", "easyocr"] = "tesseract"
+    docling_ocr_lang: list[str] = Field(default_factory=lambda: ["iso:jpn", "iso:eng"])
     docling_do_table_structure: bool = True
     docling_device: Literal["auto", "cpu", "cuda", "mps", "xpu"] = "auto"
     docling_artifacts_path: Path | None = None
+
+    chunker: Literal["hybrid", "hierarchical"] = "hybrid"
+    chunk_tokenizer: str = "ibm-granite/granite-embedding-278m-multilingual"
+    chunk_max_tokens: int = Field(default=512, ge=16)
 
     cors_allow_origins: list[str] = Field(default_factory=list[str])
     admin_api_key: SecretStr | None = None

@@ -10,6 +10,7 @@ requires-python = ">=3.14"
 dependencies = [
     "docling>=2.140.0",
     "fastapi>=0.143.3",
+    "httpx>=0.28.1",
     "llama-index-core>=0.14.25",
     "llama-index-embeddings-ollama>=0.10.0",
     "llama-index-llms-ollama>=0.10.0",
@@ -88,6 +89,8 @@ ignore = [
 # they name must stay importable outside TYPE_CHECKING blocks.
 "src/docling_llamaindex_pipeline/api/**/*.py" = ["TC001", "TC002", "TC003"]
 "tests/**/*.py" = ["S101", "S105", "S106", "D"]
+# Runnable docs: numbered file names and console output are the point.
+"examples/*.py" = ["N999", "T201"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
@@ -107,7 +110,7 @@ pythonVersion = "3.14"
 typeCheckingMode = "strict"
 venvPath = "."
 venv = ".venv"
-include = ["src", "tests"]
+include = ["src", "tests", "examples"]
 # The llama-index-* integration packages ship no py.typed marker. Pyright still
 # infers their types from source; strict mode stays on for everything else.
 reportMissingTypeStubs = false

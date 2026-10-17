@@ -727,6 +727,7 @@ source = { editable = "." }
 dependencies = [
     { name = "docling" },
     { name = "fastapi" },
+    { name = "httpx" },
     { name = "llama-index-core" },
     { name = "llama-index-embeddings-ollama" },
     { name = "llama-index-llms-ollama" },
@@ -764,6 +765,7 @@ dev = [
 requires-dist = [
     { name = "docling", specifier = ">=2.140.0" },
     { name = "fastapi", specifier = ">=0.143.3" },
+    { name = "httpx", specifier = ">=0.28.1" },
     { name = "llama-index-core", specifier = ">=0.14.25" },
     { name = "llama-index-embeddings-ibm", marker = "extra == 'ibm'", specifier = ">=0.7.0" },
     { name = "llama-index-embeddings-ollama", specifier = ">=0.10.0" },

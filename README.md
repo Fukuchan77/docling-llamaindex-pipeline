@@ -5,7 +5,17 @@ PDF / DOCX / PPTX / XLSX / HTML / CSV / XML を 1 つのエンドポイントで
 引用元のページ番号とバウンディングボックスを返します。既定構成（Docling + Ollama）では
 外部 SaaS への送信は一切ありません。
 
-仕様・基本設計: [`docs/SPEC-RAG-2026-001.md`](docs/SPEC-RAG-2026-001.md)
+- **利用ガイド（セットアップ〜基本的な使い方、公式リンク付き）: [`docs/guide/`](docs/guide/README.md)**
+- 仕様・基本設計: [`docs/SPEC-RAG-2026-001.md`](docs/SPEC-RAG-2026-001.md)
+
+既定モデルは IBM Granite に統一しています。中国製の LLM・埋め込み・OCR モデルは使用しません（`tests/unit/test_model_policy.py` で検査）。
+
+| 役割 | モデル |
+| :--- | :--- |
+| 回答生成 | `granite4.2:latest`（Ollama） |
+| 埋め込み | `granite-embedding:278m`（Ollama、多言語・768 次元・512 トークン） |
+| 文書解析 | Docling（IBM レイアウトモデル + TableFormer）/ 任意で Granite-Docling-258M |
+| OCR | Tesseract（既定）/ EasyOCR |
 
 ## クイックスタート
 
@@ -14,7 +24,8 @@ mise install            # Python 3.14 / uv（mise.toml で固定）
 mise run setup          # uv sync --all-extras --all-groups + pre-commit install
 cp .env.example .env    # 必要に応じて編集
 
-ollama pull bge-m3 && ollama pull llama3.1:8b
+ollama pull granite4.2:latest && ollama pull granite-embedding:278m
+sudo apt-get install -y tesseract-ocr tesseract-ocr-jpn   # PDF の OCR 用（macOS: brew install tesseract tesseract-lang）
 mise run dev            # http://127.0.0.1:8000/docs
 ```
 
@@ -66,7 +77,8 @@ HTML / DOCX / CSV などページレイアウトを持たない形式では `bou
 
 - 起動時に検証し、誤設定は即座に起動失敗（選択プロバイダの認証情報不足など）。
 - `APP_ENV=production` では `CORS_ALLOW_ORIGINS` の `*` を禁止し、`ADMIN_API_KEY` を必須化。
-- エアギャップ運用: `docling-tools models download` で取得したモデルを `DOCLING_ARTIFACTS_PATH` に指定。
+- エアギャップ運用: `docling-tools models download layout tableformer` で取得したモデルを `DOCLING_ARTIFACTS_PATH` に指定し、チャンク用トークナイザを HF キャッシュに入れて `HF_HUB_OFFLINE=1`（[手順](docs/guide/01-setup.md#15-docling-のモデルとチャンク用トークナイザ)）。
+- チャンク分割は `HybridChunker` + `granite-embedding-278m-multilingual` トークナイザで 512 トークン以内に制御（`CHUNKER` / `CHUNK_MAX_TOKENS`）。
 
 ## 開発
 
@@ -93,13 +105,14 @@ src/docling_llamaindex_pipeline/
 ├── app.py          # create_app(): ミドルウェア・lifespan・ルータの組み立てのみ
 ├── config.py       # Settings（唯一のモデル ID 既定値の置き場）
 ├── providers.py    # 埋め込み / LLM ファクトリ（OpenAI・IBM は遅延 import）
-├── parsing.py      # DoclingReader(JSON) + DoclingNodeParser、Converter は使い回し
+├── parsing.py      # DoclingReader(JSON) + DoclingNodeParser(HybridChunker)、OCR エンジン固定
 ├── uploads.py      # ファイル名サニタイズ・一時保存・finally での削除
 ├── grounding.py    # doc_items[].prov[] → BoundingBox
 ├── rag_service.py  # VectorStoreIndex・ロック・ホットスワップ
 ├── errors.py       # ドメイン例外 → HTTP ステータス
 ├── schemas.py      # API 入出力モデル
 └── api/            # deps（AppContainer, 管理トークン）と各ルート
+examples/           # ガイドから参照する実行可能サンプル（Docling 単体 / Ollama 疎通 / API クライアント）
 ```
 
 ### サンプル実装からの主な変更点

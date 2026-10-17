@@ -30,7 +30,11 @@ from docling_llamaindex_pipeline.api.deps import AppContainer
 from docling_llamaindex_pipeline.api.routes import embedding, health, ingest, query
 from docling_llamaindex_pipeline.config import Settings, get_settings
 from docling_llamaindex_pipeline.errors import install_exception_handlers
-from docling_llamaindex_pipeline.parsing import DoclingDocumentParser, build_document_converter
+from docling_llamaindex_pipeline.parsing import (
+    DoclingDocumentParser,
+    build_chunker,
+    build_document_converter,
+)
 from docling_llamaindex_pipeline.providers import build_embedding, build_llm
 from docling_llamaindex_pipeline.rag_service import RagService
 
@@ -83,7 +87,7 @@ class ContentLengthLimitMiddleware:
 def _default_container(settings: Settings) -> AppContainer:
     embedding_selection = build_embedding(settings.embedding_provider, settings)
     rag_service = RagService(embedding=embedding_selection, llm=build_llm(settings))
-    parser = DoclingDocumentParser(build_document_converter(settings))
+    parser = DoclingDocumentParser(build_document_converter(settings), build_chunker(settings))
     return AppContainer(settings=settings, rag_service=rag_service, parser=parser)
 
 

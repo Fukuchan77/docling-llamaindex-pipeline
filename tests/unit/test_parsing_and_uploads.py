@@ -6,17 +6,24 @@ from typing import TYPE_CHECKING
 
 import pytest
 from docling.datamodel.base_models import InputFormat
+from docling.datamodel.pipeline_options import EasyOcrOptions, TesseractCliOcrOptions
 from docling.exceptions import ConversionError
+from docling_core.transforms.chunker.hierarchical_chunker import HierarchicalChunker
+from docling_core.transforms.chunker.hybrid_chunker import HybridChunker
+from docling_core.transforms.chunker.tokenizer.base import BaseTokenizer
+from docling_core.transforms.chunker.tokenizer.huggingface import HuggingFaceTokenizer
 
 from docling_llamaindex_pipeline.errors import DocumentParsingError, UnsupportedFormatError
 from docling_llamaindex_pipeline.parsing import (
     SUPPORTED_EXTENSIONS,
     DoclingDocumentParser,
+    build_chunker,
     build_document_converter,
 )
 from docling_llamaindex_pipeline.uploads import safe_filename, validate_extension
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from pathlib import Path
 
     from docling.document_converter import DocumentConverter
@@ -158,3 +165,73 @@ def test_minimal_pdf_fixture_is_a_readable_pdf() -> None:
     text = document[0].get_textpage().get_text_range()
     assert "Margin (2025): 12.5 percent" in text
     assert "Second line" in text
+
+
+class _WordTokenizer(BaseTokenizer):
+    """Whitespace "tokenizer" so HybridChunker can be exercised offline."""
+
+    max_tokens: int = 8
+
+    def count_tokens(self, text: str) -> int:
+        return len(text.split())
+
+    def get_max_tokens(self) -> int:
+        return self.max_tokens
+
+    def get_tokenizer(self) -> Callable[[str], int]:
+        # semchunk accepts a plain token-counting callable.
+        return self.count_tokens
+
+
+def test_hybrid_chunker_bounds_chunk_size_and_keeps_headings(
+    converter: DocumentConverter, tmp_path: Path
+) -> None:
+    long_paragraph = " ".join(f"word{i}" for i in range(40))
+    path = tmp_path / "long.html"
+    path.write_text(f"<h1>Section</h1><p>{long_paragraph}</p>", encoding="utf-8")
+    chunker = HybridChunker(tokenizer=_WordTokenizer(max_tokens=8), merge_peers=True)
+
+    nodes = DoclingDocumentParser(converter, chunker).parse(path)
+
+    assert len(nodes) > 1
+    for node in nodes:
+        assert node.metadata["headings"] == ["Section"]
+        # Embedded text = heading context + chunk; it must fit the token budget.
+        assert len(node.get_content().split()) <= 8 + 1
+
+
+def test_build_chunker_loads_configured_tokenizer(
+    settings_factory: SettingsFactory, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[tuple[str, int | None]] = []
+
+    def _from_pretrained(model_name: str, max_tokens: int | None = None) -> BaseTokenizer:
+        calls.append((model_name, max_tokens))
+        return _WordTokenizer(max_tokens=max_tokens or 0)
+
+    monkeypatch.setattr(HuggingFaceTokenizer, "from_pretrained", _from_pretrained)
+
+    chunker = build_chunker(settings_factory(chunk_max_tokens=256))
+
+    assert isinstance(chunker, HybridChunker)
+    assert calls == [("ibm-granite/granite-embedding-278m-multilingual", 256)]
+    assert chunker.tokenizer.get_max_tokens() == 256
+
+
+def test_build_chunker_hierarchical_needs_no_tokenizer(settings_factory: SettingsFactory) -> None:
+    assert isinstance(build_chunker(settings_factory(chunker="hierarchical")), HierarchicalChunker)
+
+
+def test_ocr_engine_is_pinned(settings_factory: SettingsFactory) -> None:
+    def _ocr(**overrides: object) -> object:
+        converter = build_document_converter(settings_factory(**overrides))
+        options = converter.format_to_options[InputFormat.PDF].pipeline_options
+        return getattr(options, "ocr_options")  # noqa: B009 — PdfPipelineOptions field.
+
+    tesseract = _ocr()
+    easy = _ocr(docling_ocr_engine="easyocr", docling_ocr_lang=["iso:eng"])
+
+    assert isinstance(tesseract, TesseractCliOcrOptions)
+    assert tesseract.lang == ["iso:ja-Jpan", "iso:en-Latn"]
+    assert isinstance(easy, EasyOcrOptions)
+    assert easy.lang == ["iso:en-Latn"]

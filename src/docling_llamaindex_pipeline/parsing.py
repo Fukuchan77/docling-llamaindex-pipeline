@@ -10,6 +10,11 @@ its layout and TableFormer models on the first PDF and caches them on the
 converter, so constructing one per request (as a naive implementation
 would) reloads the models on every upload.
 
+Chunking defaults to Docling's ``HybridChunker`` with the embedding model's
+own tokenizer, so no chunk exceeds the embedding context (512 tokens for
+``granite-embedding:278m``); Ollama would otherwise truncate the input
+silently and the tail of a long section would never be retrievable.
+
 The :class:`DocumentParser` protocol is the dependency-injection seam the API
 uses, so unit tests can substitute a parser that needs no models.
 """
@@ -20,9 +25,17 @@ from typing import TYPE_CHECKING, Protocol
 
 from docling.datamodel.accelerator_options import AcceleratorDevice, AcceleratorOptions
 from docling.datamodel.base_models import InputFormat
-from docling.datamodel.pipeline_options import PdfPipelineOptions
+from docling.datamodel.pipeline_options import (
+    EasyOcrOptions,
+    OcrOptions,
+    PdfPipelineOptions,
+    TesseractCliOcrOptions,
+)
 from docling.document_converter import DocumentConverter, PdfFormatOption
 from docling.exceptions import ConversionError
+from docling_core.transforms.chunker.hierarchical_chunker import HierarchicalChunker
+from docling_core.transforms.chunker.hybrid_chunker import HybridChunker
+from docling_core.transforms.chunker.tokenizer.huggingface import HuggingFaceTokenizer
 from llama_index.node_parser.docling import DoclingNodeParser
 from llama_index.readers.docling import DoclingReader
 
@@ -31,6 +44,7 @@ from docling_llamaindex_pipeline.errors import DocumentParsingError
 if TYPE_CHECKING:
     from pathlib import Path
 
+    from docling_core.transforms.chunker.base import BaseChunker
     from llama_index.core.schema import BaseNode
 
     from docling_llamaindex_pipeline.config import Settings
@@ -39,6 +53,7 @@ __all__ = [
     "SUPPORTED_EXTENSIONS",
     "DoclingDocumentParser",
     "DocumentParser",
+    "build_chunker",
     "build_document_converter",
 ]
 
@@ -77,18 +92,27 @@ class DocumentParser(Protocol):
         ...
 
 
+def _ocr_options(settings: Settings) -> OcrOptions:
+    """Pin the OCR engine; Docling's auto mode may pick PaddleOCR-derived models."""
+    if settings.docling_ocr_engine == "easyocr":
+        return EasyOcrOptions(lang=settings.docling_ocr_lang)
+    return TesseractCliOcrOptions(lang=settings.docling_ocr_lang)
+
+
 def build_document_converter(settings: Settings) -> DocumentConverter:
     """Build a Docling converter configured from ``settings``.
 
     Args:
-        settings: Source of the OCR / table-structure toggles, the
-            accelerator device and the (air-gapped) model artifacts path.
+        settings: Source of the OCR engine / languages, the table-structure
+            toggle, the accelerator device and the (air-gapped) model
+            artifacts path.
 
     Returns:
         A converter accepting only the supported formats.
     """
     pdf_options = PdfPipelineOptions(
         do_ocr=settings.docling_do_ocr,
+        ocr_options=_ocr_options(settings),
         do_table_structure=settings.docling_do_table_structure,
         artifacts_path=settings.docling_artifacts_path,
         accelerator_options=AcceleratorOptions(device=AcceleratorDevice(settings.docling_device)),
@@ -99,19 +123,53 @@ def build_document_converter(settings: Settings) -> DocumentConverter:
     )
 
 
+def build_chunker(settings: Settings) -> BaseChunker:
+    """Build the chunker ``DoclingNodeParser`` splits documents with.
+
+    ``hybrid`` loads ``settings.chunk_tokenizer`` from the Hugging Face Hub
+    (or the local HF cache; set ``HF_HUB_OFFLINE=1`` on air-gapped hosts).
+
+    Args:
+        settings: Source of the chunking strategy, tokenizer and token budget.
+
+    Returns:
+        A token-bounded ``HybridChunker`` or an unbounded ``HierarchicalChunker``.
+
+    Raises:
+        RuntimeError: The tokenizer could not be loaded.
+    """
+    if settings.chunker == "hierarchical":
+        return HierarchicalChunker()
+    try:
+        tokenizer = HuggingFaceTokenizer.from_pretrained(  # pyright: ignore[reportUnknownMemberType]
+            model_name=settings.chunk_tokenizer,
+            max_tokens=settings.chunk_max_tokens,
+        )
+    except Exception as exc:  # transformers raises OSError / ValueError / HF errors.
+        msg = (
+            f"Could not load chunk tokenizer '{settings.chunk_tokenizer}': {exc}. "
+            "Allow access to the Hugging Face Hub once (it is cached afterwards), "
+            "or set CHUNKER=hierarchical."
+        )
+        raise RuntimeError(msg) from exc
+    return HybridChunker(tokenizer=tokenizer, merge_peers=True)
+
+
 class DoclingDocumentParser:
     """:class:`DocumentParser` backed by ``DoclingReader`` + ``DoclingNodeParser``.
 
     Args:
         converter: The Docling converter to reuse across calls.
+        chunker: Chunker for ``DoclingNodeParser``; defaults to Docling's
+            ``HierarchicalChunker``.
     """
 
-    def __init__(self, converter: DocumentConverter) -> None:
+    def __init__(self, converter: DocumentConverter, chunker: BaseChunker | None = None) -> None:
         self._reader = DoclingReader(
             export_type=DoclingReader.ExportType.JSON,
             doc_converter=converter,
         )
-        self._node_parser = DoclingNodeParser()
+        self._node_parser = DoclingNodeParser(chunker=chunker or HierarchicalChunker())
 
     def parse(self, path: Path) -> list[BaseNode]:
         """Convert ``path`` with Docling and chunk it into nodes.
