@@ -32,7 +32,7 @@ mise run dev            # http://127.0.0.1:8000/docs
 
 mise がない場合: `uv sync --all-extras --all-groups` のあと `uv run docling-llamaindex-pipeline`。
 
-Ollama のみで使う場合、オプション extra は不要です（`uv sync`）。OpenAI は `--extra openai`、
+Ollama のみで使う場合、オプション extra は不要です（`uv sync`）。OpenAI は `--extra openai`、Anthropic（回答生成のみ）は `--extra anthropic`、
 IBM watsonx.ai は `--extra ibm` で追加します。
 
 > Docling は PyPI から CUDA 版 torch を取り込むため、初回 `uv sync` は約 6 GB / 数分かかります。

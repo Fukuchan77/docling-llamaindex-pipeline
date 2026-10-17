@@ -51,6 +51,7 @@ class LLMProvider(StrEnum):
 
     OLLAMA = "ollama"
     OPENAI = "openai"
+    ANTHROPIC = "anthropic"
 
 
 class Settings(BaseSettings):
@@ -80,6 +81,8 @@ class Settings(BaseSettings):
         openai_api_key: OpenAI API key (required for any ``openai`` provider).
         openai_embed_model: OpenAI embedding model ID.
         openai_llm_model: OpenAI chat model ID.
+        anthropic_api_key: Anthropic API key (required for the ``anthropic`` LLM).
+        anthropic_llm_model: Anthropic chat model ID.
         temp_upload_dir: Directory uploads are staged in before parsing. Each
             upload gets its own private sub-directory, removed after parsing.
         max_upload_size_mb: Upper bound on an uploaded file (HTTP 413 above it).
@@ -143,6 +146,9 @@ class Settings(BaseSettings):
     openai_embed_model: str = "text-embedding-3-small"
     openai_llm_model: str = "gpt-4o-mini"
 
+    anthropic_api_key: SecretStr | None = None
+    anthropic_llm_model: str = "claude-opus-5-5"
+
     temp_upload_dir: Path = Path("./data_uploads")
     max_upload_size_mb: int = Field(default=50, ge=1)
     max_concurrent_ingestions: int = Field(default=1, ge=1)
@@ -187,6 +193,8 @@ class Settings(BaseSettings):
             }
         elif provider in (EmbeddingProvider.OPENAI, LLMProvider.OPENAI):
             required = {"OPENAI_API_KEY": self.openai_api_key}
+        elif provider == LLMProvider.ANTHROPIC:
+            required = {"ANTHROPIC_API_KEY": self.anthropic_api_key}
         return [name for name, value in required.items() if not value]
 
     @model_validator(mode="after")

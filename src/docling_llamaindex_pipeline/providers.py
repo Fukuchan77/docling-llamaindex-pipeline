@@ -155,3 +155,14 @@ def build_llm(settings: Settings) -> LLM:
                 model=settings.openai_llm_model,
                 api_key=settings.openai_api_key.get_secret_value(),
             )
+        case LLMProvider.ANTHROPIC:
+            try:
+                from llama_index.llms.anthropic import Anthropic
+            except ImportError as exc:
+                raise _missing_extra(provider, "anthropic") from exc
+
+            assert settings.anthropic_api_key is not None  # noqa: S101 — checked above.
+            return Anthropic(
+                model=settings.anthropic_llm_model,
+                api_key=settings.anthropic_api_key.get_secret_value(),
+            )

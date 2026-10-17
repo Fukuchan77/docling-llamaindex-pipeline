@@ -57,6 +57,7 @@ def test_secrets_are_masked_in_repr(settings_factory: SettingsFactory) -> None:
     [
         ({"embedding_provider": "openai"}, "OPENAI_API_KEY required"),
         ({"llm_provider": "openai"}, "OPENAI_API_KEY required"),
+        ({"llm_provider": "anthropic"}, "ANTHROPIC_API_KEY required"),
         ({"embedding_provider": "ibm"}, "WATSONX_APIKEY, WATSONX_PROJECT_ID required"),
         ({"embedding_provider": "ibm", "watsonx_apikey": "k"}, "WATSONX_PROJECT_ID required"),
         (
