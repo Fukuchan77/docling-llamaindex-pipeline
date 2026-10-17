@@ -222,3 +222,6 @@ __marimo__/
 # AI coding work folders
 .claude/
 .serena/
+
+# Upload staging directory (TEMP_UPLOAD_DIR default)
+data_uploads/

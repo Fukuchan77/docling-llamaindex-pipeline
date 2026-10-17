@@ -12,14 +12,25 @@ dependencies = [
     "fastapi>=0.143.3",
     "llama-index-core>=0.14.25",
     "llama-index-embeddings-ollama>=0.10.0",
+    "llama-index-llms-ollama>=0.10.0",
     "llama-index-node-parser-docling>=0.5.0",
     "llama-index-readers-docling>=0.5.0",
     "pydantic-settings>=2.16.0",
+    "python-multipart>=0.0.20",
     "uvicorn[standard]>=0.54.0",
 ]
 
 [project.scripts]
 docling-llamaindex-pipeline = "docling_llamaindex_pipeline:main"
+
+[project.optional-dependencies]
+openai = [
+    "llama-index-embeddings-openai>=0.7.0",
+    "llama-index-llms-openai>=0.8.3",
+]
+ibm = [
+    "llama-index-embeddings-ibm>=0.7.0",
+]
 
 [build-system]
 requires = ["uv_build>=0.13.1,<0.14.0"]
@@ -27,12 +38,110 @@ build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
+    "httpx2>=2.13.1",
     "pip-audit>=2.10.1",
     "pre-commit>=4.7.0",
     "pyright>=1.1.414",
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
     "pytest-cov>=7.1.0",
+    "pytest-env>=1.8.0",
     "ruff>=0.17.1",
     "ty>=0.0.89",
 ]
+
+[tool.ruff]
+target-version = "py314"
+line-length = 100
+# Hand-written snippets in Markdown stay out of the formatter's reach.
+extend-exclude = ["*.md"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "BLE", # flake8-blind-except (broad excepts need a scoped noqa + rationale)
+    "UP",  # pyupgrade
+    "RUF", # ruff-specific
+    "S",   # flake8-bandit (security)
+    "A",   # flake8-builtins
+    "SIM", # flake8-simplify
+    "T20", # flake8-print
+    "D",   # pydocstyle (Google convention)
+    "N",   # pep8-naming
+    "C4",  # flake8-comprehensions
+    "C90", # mccabe complexity
+    "TC",  # flake8-type-checking
+    "PT",  # flake8-pytest-style
+]
+ignore = [
+    "E501", # line length is the formatter's job
+    "D105", # magic-method docstrings
+    "D107", # __init__ docstrings (documented on the class, Google style)
+]
+
+[tool.ruff.lint.per-file-ignores]
+# FastAPI evaluates route / dependency annotations at runtime, so the types
+# they name must stay importable outside TYPE_CHECKING blocks.
+"src/docling_llamaindex_pipeline/api/**/*.py" = ["TC001", "TC002", "TC003"]
+"tests/**/*.py" = ["S101", "S105", "S106", "D"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.isort]
+known-first-party = ["docling_llamaindex_pipeline"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.pyright]
+pythonVersion = "3.14"
+typeCheckingMode = "strict"
+venvPath = "."
+venv = ".venv"
+include = ["src", "tests"]
+# The llama-index-* integration packages ship no py.typed marker. Pyright still
+# infers their types from source; strict mode stays on for everything else.
+reportMissingTypeStubs = false
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+pythonpath = ["."]
+markers = [
+    "integration: needs a live Ollama daemon and Docling models (RUN_INTEGRATION_OLLAMA=1).",
+]
+# Hermetic floor: unit runs must never reach the Hugging Face Hub. Docling's
+# HTML / CSV / Office backends need no models; PDF layout models are only
+# exercised by the gated integration lane.
+env = [
+    "HF_HUB_OFFLINE=1",
+]
+# Deprecations hard-fail so an upstream API we rely on cannot silently rot.
+# Each ignore names its emitter; remove it once the upstream release is fixed.
+filterwarnings = [
+    "error::DeprecationWarning",
+    # llama-index-embeddings-ibm 0.7.0 still declares pydantic-v1 style fields
+    # (`allow_mutation`, class-based `Config`) at import time.
+    "ignore::pydantic.warnings.PydanticDeprecatedSince20:llama_index.embeddings.ibm.base",
+]
+
+[tool.coverage.run]
+source = ["src/docling_llamaindex_pipeline"]
+branch = true
+relative_files = true
+
+[tool.coverage.report]
+fail_under = 98
+show_missing = true
+skip_covered = false
+exclude_also = ["if TYPE_CHECKING:"]

@@ -1,0 +1,40 @@
+# Monthly version hygiene; CVE detection is security.yml's daily pip-audit.
+version: 2
+
+updates:
+  - package-ecosystem: uv
+    directory: "/"
+    schedule:
+      interval: monthly
+      time: "06:13"
+      timezone: "Etc/UTC"
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "python"]
+    commit-message:
+      prefix: "deps"
+      include: scope
+    groups:
+      python-minor-and-patch:
+        patterns: ["*"]
+        # Docling / LlamaIndex integration packages move together and change
+        # node metadata shapes between minors; review them individually.
+        exclude-patterns:
+          - "docling*"
+          - "llama-index-node-parser-docling"
+          - "llama-index-readers-docling"
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly
+      time: "06:23"
+      timezone: "Etc/UTC"
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "github-actions"]
+    commit-message:
+      prefix: "ci"
+    groups:
+      actions-minor-and-patch:
+        patterns: ["*"]
+        update-types: [minor, patch]

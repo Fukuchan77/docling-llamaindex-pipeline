@@ -1,3 +1,85 @@
 [tools]
 python = "3.14"
 uv = "0.13"
+
+# Every quality gate runs through this file: local development, the
+# pre-commit hooks and CI (.github/workflows/ci.yml) all call these tasks, so
+# there is exactly one definition of "green". Add a new check here (and to
+# `check`), never only to CI or only to a hook.
+
+[tasks.setup]
+description = "Bootstrap a fresh checkout: sync all deps/extras and install the git hooks."
+run = "uv sync --all-extras --all-groups && uv run pre-commit install"
+
+[tasks.lint]
+description = "Ruff lint (security S / complexity C90 / docstrings D / naming N / type-checking TC)."
+run = "uv run ruff check ."
+
+[tasks.format]
+description = "Ruff format verification (no rewrite)."
+run = "uv run ruff format --check ."
+
+[tasks."format:fix"]
+description = "Apply ruff format and safe lint fixes in place."
+run = ["uv run ruff format .", "uv run ruff check --fix ."]
+
+[tasks.typecheck]
+description = "Pyright strict + ty against Python 3.14 (src and tests)."
+run = ["uv run pyright", "uv run ty check"]
+
+[tasks.test]
+description = "Hermetic unit suite (no network, no Docling models); live lane self-skips."
+run = "uv run pytest"
+
+[tasks.cov]
+description = "Unit suite with the coverage ratchet ([tool.coverage.report] fail_under)."
+run = "uv run pytest --cov --cov-report=term-missing"
+
+[tasks."cov:xml"]
+description = "Coverage-gated run that also writes coverage.xml (CI input)."
+run = "uv run pytest --cov --cov-report=xml --cov-report=term"
+
+[tasks.audit]
+# Audits the exact locked set (all extras + dev group) exported from uv.lock, via
+# `uvx`, so the audit needs no project sync (no multi-GB torch install) and a
+# dev-only tool cannot mask or add findings.
+#
+# PYSEC-2026-3740 (nltk 3.10.3, a llama-index-core transitive): NLTK's model
+# import/export helpers bypass its path-security checks. Not reachable here:
+# the advisory requires an app that enables pathsec enforcement *and* lets
+# untrusted input choose a model import/export path, and src/ imports no nltk
+# symbol at all. There is no fixed release to upgrade to (3.10.3 is the latest
+# on PyPI). Same call as pydantic-ai-sandbox's rag / llamaindex lanes. Review by
+# 2026-11-05; remove the moment nltk ships a fix.
+description = "pip-audit of the locked dependency set (PyPI advisory DB)."
+run = """
+set -e
+req="$(mktemp)"
+trap 'rm -f "$req"' EXIT
+uv export --frozen --all-extras --no-emit-project --format requirements-txt -o "$req" >/dev/null
+uvx --from "pip-audit>=2.10.1,<3" pip-audit --strict --disable-pip --no-deps -r "$req" --ignore-vuln PYSEC-2026-3740
+"""
+
+[tasks."check:static"]
+description = "Static half of the gate (lint / format / typecheck)."
+depends = ["lint", "format", "typecheck"]
+
+[tasks.check]
+description = "Aggregate quality gate: lint / format / typecheck / coverage-gated tests."
+depends = ["lint", "format", "typecheck", "cov"]
+
+[tasks."pre-commit:validate"]
+description = "Validate .pre-commit-config.yaml (cheap CI check for a drifted hook config)."
+run = "uv run pre-commit validate-config .pre-commit-config.yaml"
+
+[tasks."test:integration"]
+description = "Live lane: real Docling + Ollama (needs OLLAMA_* models pulled; PDF case needs Docling models)."
+run = "RUN_INTEGRATION_OLLAMA=1 uv run pytest tests/integration -v"
+
+[tasks.dev]
+description = "Run the API with hot reload (reads .env)."
+run = "uv run uvicorn docling_llamaindex_pipeline.app:create_app --factory --reload --env-file .env"
+
+[tasks.serve]
+description = "Run the API via the console entry point (API_HOST / API_PORT from env / .env)."
+run = "uv run docling-llamaindex-pipeline"
