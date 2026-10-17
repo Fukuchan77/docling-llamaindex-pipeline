@@ -8,7 +8,8 @@ Usage::
 Standard pipeline: IBM's layout model + TableFormer, OCR pinned to Tesseract
 (Docling's automatic OCR selection may otherwise pick PaddleOCR-derived models).
 ``--vlm``: the IBM Granite-Docling-258M vision-language model, pinned
-explicitly rather than relying on Docling's default VLM preset.
+explicitly rather than relying on Docling's default VLM preset. The MLX build is
+used on Apple Silicon when ``mlx-vlm`` is installed, transformers otherwise.
 
 Docs: https://docling-project.github.io/docling/usage/
 """
@@ -16,6 +17,9 @@ Docs: https://docling-project.github.io/docling/usage/
 from __future__ import annotations
 
 import argparse
+import importlib.util
+import platform
+import sys
 from pathlib import Path
 
 from docling.datamodel import vlm_model_specs
@@ -41,9 +45,24 @@ def standard_converter() -> DocumentConverter:
     )
 
 
+def mlx_available() -> bool:
+    """True on Apple Silicon when ``mlx-vlm`` is installed (``docling[vlm]`` pulls it in there)."""
+    on_apple_silicon = sys.platform == "darwin" and platform.machine() == "arm64"
+    return on_apple_silicon and importlib.util.find_spec("mlx_vlm") is not None
+
+
 def granite_docling_converter() -> DocumentConverter:
-    """Page images -> DocTags with Granite-Docling-258M (Hugging Face transformers)."""
-    options = VlmPipelineOptions(vlm_options=vlm_model_specs.GRANITEDOCLING_TRANSFORMERS)
+    """Page images -> DocTags with Granite-Docling-258M.
+
+    Uses MLX on Apple Silicon (about 17x faster in our measurement) and Hugging Face
+    transformers everywhere else.
+    """
+    backend = (
+        vlm_model_specs.GRANITEDOCLING_MLX
+        if mlx_available()
+        else vlm_model_specs.GRANITEDOCLING_TRANSFORMERS
+    )
+    options = VlmPipelineOptions(vlm_options=backend)
     return DocumentConverter(
         format_options={
             InputFormat.PDF: PdfFormatOption(pipeline_cls=VlmPipeline, pipeline_options=options)

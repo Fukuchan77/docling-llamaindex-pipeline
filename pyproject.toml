@@ -32,6 +32,9 @@ openai = [
 ibm = [
     "llama-index-embeddings-ibm>=0.7.0",
 ]
+mlx = [
+    "mlx-vlm>=0.7.0,<1.0.0 ; platform_machine == 'arm64' and sys_platform == 'darwin'",
+]
 
 [build-system]
 requires = ["uv_build>=0.13.1,<0.14.0"]
@@ -133,6 +136,9 @@ env = [
 # Each ignore names its emitter; remove it once the upstream release is fixed.
 filterwarnings = [
     "error::DeprecationWarning",
+    # Docling's StandardPdfPipeline reads its own deprecated
+    # `generate_table_images` option while initialising models.
+    "ignore:This field is deprecated. Use `generate_page_images=True`:DeprecationWarning",
     # llama-index-embeddings-ibm 0.7.0 still declares pydantic-v1 style fields
     # (`allow_mutation`, class-based `Config`) at import time.
     "ignore::pydantic.warnings.PydanticDeprecatedSince20:llama_index.embeddings.ibm.base",

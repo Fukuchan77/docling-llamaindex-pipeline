@@ -42,6 +42,9 @@ mise run setup     # = uv sync --all-extras --all-groups && uv run pre-commit in
 | Ollama だけで運用 | `uv sync --no-dev` |
 | OpenAI へ切り替える可能性がある | `uv sync --no-dev --extra openai` |
 | IBM watsonx.ai へ切り替える可能性がある | `uv sync --no-dev --extra ibm` |
+| Apple Silicon で Granite-Docling（VLM）を MLX で高速に動かす | `uv sync --no-dev --extra mlx`（[2.2](02-components.md#22-docling-granite-docling-258mvlm-で変換する)） |
+
+> **Note:** `mlx` extra は `mlx-vlm` を Apple Silicon（macOS / arm64）にだけインストールします。他の環境では何も入らないため、`mise run setup`（`--all-extras`）でそのまま使えます。
 
 依存関係は `uv.lock` で固定されています。追加・更新は `uv add <pkg>` で行い、`pip install` は使いません。
 
