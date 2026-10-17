@@ -1,0 +1,38 @@
+[project]
+name = "docling-llamaindex-pipeline"
+version = "0.1.0"
+description = "Multi-format Document Ingestion & RAG API powered by Docling and LlamaIndex"
+readme = "README.md"
+authors = [
+    { name = "Fukuchan", email = "Fukuchan77@outlook.com" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "docling>=2.140.0",
+    "fastapi>=0.143.3",
+    "llama-index-core>=0.14.25",
+    "llama-index-embeddings-ollama>=0.10.0",
+    "llama-index-node-parser-docling>=0.5.0",
+    "llama-index-readers-docling>=0.5.0",
+    "pydantic-settings>=2.16.0",
+    "uvicorn[standard]>=0.54.0",
+]
+
+[project.scripts]
+docling-llamaindex-pipeline = "docling_llamaindex_pipeline:main"
+
+[build-system]
+requires = ["uv_build>=0.13.1,<0.14.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pip-audit>=2.10.1",
+    "pre-commit>=4.7.0",
+    "pyright>=1.1.414",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.17.1",
+    "ty>=0.0.89",
+]
