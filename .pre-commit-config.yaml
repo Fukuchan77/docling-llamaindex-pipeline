@@ -1,0 +1,55 @@
+# Git hooks. Tool hooks use `language: system` so they run the project's own
+# uv-locked dev dependencies — `pre-commit run` and `mise run check` execute
+# byte-identical tool versions.
+#
+#   pre-commit (every commit): ruff check, ruff format --check, pyright, gitleaks
+#   manual (`uv run pre-commit run --all-files --hook-stage manual`): pytest, pip-audit
+#
+# Install with `mise run setup`.
+
+default_install_hook_types: [pre-commit]
+default_stages: [pre-commit]
+
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff check
+        language: system
+        entry: uv run ruff check
+        types: [python]
+
+      - id: ruff-format-check
+        name: ruff format --check
+        language: system
+        entry: uv run ruff format --check
+        types: [python]
+
+      - id: pyright
+        name: pyright (strict)
+        language: system
+        entry: uv run pyright
+        types: [python]
+        pass_filenames: false
+        require_serial: true
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.21.2
+    hooks:
+      - id: gitleaks
+
+  - repo: local
+    hooks:
+      - id: pytest
+        name: pytest (manual stage)
+        language: system
+        entry: mise run cov
+        pass_filenames: false
+        stages: [manual]
+
+      - id: pip-audit
+        name: pip-audit (manual stage)
+        language: system
+        entry: mise run audit
+        pass_filenames: false
+        stages: [manual]

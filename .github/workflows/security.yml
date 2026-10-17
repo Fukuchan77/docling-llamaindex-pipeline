@@ -1,0 +1,56 @@
+# Dependency CVE scan (pip-audit over the locked set) and secret scanning.
+# The daily cron catches advisories filed against an unchanged uv.lock.
+
+name: security
+
+on:
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '41 1 * * *'  # daily pip-audit; off-zero minute avoids the :00 stampede
+  workflow_dispatch: {}
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  pip-audit:
+    name: pip-audit (PyPI advisory DB)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Install mise + tooling
+        uses: jdx/mise-action@dba19683ed58901619b14f395a24841710cb4925 # v4.1.0
+        with:
+          version: 2026.6.10
+          experimental: true
+          install: true
+          cache: true
+
+      # `mise run audit` exports uv.lock and runs pip-audit via uvx, so no
+      # project sync (and no torch download) is needed here.
+      - name: mise run audit
+        run: mise run audit
+
+  gitleaks:
+    name: gitleaks (secret scan)
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
