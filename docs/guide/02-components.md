@@ -14,14 +14,14 @@ API サーバを組み立てる前に、Docling と LlamaIndex × Ollama をそ�
 
 ```bash
 # 標準パイプライン（レイアウト解析 + TableFormer）で Markdown に変換
-uv run docling report.pdf --to md --output ./output
+uv run docling report.pdf --ocr-engine tesseract --ocr-lang jpn,eng --to md --output ./output
 
 # JSON（DoclingDocument）。ページ番号や座標などのプロバナンスを含む
-uv run docling report.pdf --to json --output ./output
-
-# OCR を Tesseract に固定する（本プロジェクトの方針）
-uv run docling scan.pdf --ocr-engine tesseract --ocr-lang jpn,eng --output ./output
+uv run docling report.pdf --ocr-engine tesseract --ocr-lang jpn,eng --to json --output ./output
 ```
+
+> **Warning:** `--ocr-engine` を省略すると、Docling は RapidOCR（PaddleOCR 由来のモデル）を自動選択し、モデルをダウンロードします。
+> 本プロジェクトの方針（PaddleOCR 由来モデルを使わない）に反するため、CLI では必ず `--ocr-engine tesseract` を付けてください。
 
 | 対応形式 | 必要なモデル |
 | :--- | :--- |
@@ -81,8 +81,10 @@ print(doc.export_to_markdown()[:400])
 
 | 項目 | 内容 |
 | :--- | :--- |
-| 追加パッケージ | `uv add "docling[vlm]"` |
-| Apple Silicon | `vlm_model_specs.GRANITEDOCLING_MLX` と `mlx-vlm` |
+| 追加パッケージ（transformers 版） | 追加なしで動作する。`docling[vlm]` は他の VLM 用の依存も含む |
+| 追加パッケージ（Apple Silicon） | `uv sync --extra mlx`（`mlx-vlm` を Apple Silicon にだけ導入。`mise run setup` でも自動で入る）。`docling[vlm]` も同じ `mlx-vlm` を含む |
+| Apple Silicon | `vlm_model_specs.GRANITEDOCLING_MLX`。`examples/01_docling_basic.py --vlm` は `mlx-vlm` があれば自動で選ぶ |
+| 実測（Apple Silicon、`ISWP2026_Chap1.pdf` の 2 ページ） | MLX 約 8 秒/ページ（2 ページ 16.8 秒）、transformers 約 135 秒/ページ（2 ページ 289 秒）。約 17 倍の差 |
 | 本 API での扱い | 現在は標準パイプラインを使用（VLM パイプラインの API 組み込みは今後の拡張） |
 
 ## 2.3 LlamaIndex × Ollama: Granite モデルの疎通確認
@@ -105,7 +107,7 @@ from llama_index.llms.ollama import Ollama
 
 embed = OllamaEmbedding(model_name="granite-embedding:278m", base_url="http://localhost:11434")
 llm = Ollama(model="granite4.2:latest", base_url="http://localhost:11434",
-             request_timeout=120.0, temperature=0.1)
+             request_timeout=120.0, context_window=8192, temperature=0.1)
 
 len(embed.get_text_embedding("ローカル RAG"))   # 768
 llm.complete("RAG の利点を一文で").text
@@ -127,12 +129,21 @@ llm.complete("RAG の利点を一文で").text
 | `DoclingNodeParser(chunker=HybridChunker(...))` | 章・節・表の境界に沿って分割し、さらに埋め込みモデルのトークン上限内に収める |
 
 ```python
+from docling.datamodel.base_models import InputFormat
+from docling.datamodel.pipeline_options import PdfPipelineOptions, TesseractCliOcrOptions
+from docling.document_converter import DocumentConverter, PdfFormatOption
 from docling_core.transforms.chunker.hybrid_chunker import HybridChunker
 from docling_core.transforms.chunker.tokenizer.huggingface import HuggingFaceTokenizer
 from llama_index.node_parser.docling import DoclingNodeParser
 from llama_index.readers.docling import DoclingReader
 
-reader = DoclingReader(export_type=DoclingReader.ExportType.JSON)
+# OCR を明示する。省略すると既定のコンバータが RapidOCR（PaddleOCR 由来）を選ぶ
+converter = DocumentConverter(format_options={
+    InputFormat.PDF: PdfFormatOption(pipeline_options=PdfPipelineOptions(
+        ocr_options=TesseractCliOcrOptions(lang=["iso:jpn", "iso:eng"]),
+    )),
+})
+reader = DoclingReader(export_type=DoclingReader.ExportType.JSON, doc_converter=converter)
 tokenizer = HuggingFaceTokenizer.from_pretrained(
     model_name="ibm-granite/granite-embedding-278m-multilingual",  # granite-embedding:278m と同じ語彙
     max_tokens=512,                                                 # 同モデルのコンテキスト上限

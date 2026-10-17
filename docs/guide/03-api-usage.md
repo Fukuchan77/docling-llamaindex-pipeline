@@ -134,6 +134,7 @@ curl -H 'Content-Type: application/json' -H "X-Admin-Token: $ADMIN_API_KEY" \
 | `provider` | `ollama` / `ibm`（watsonx.ai、`--extra ibm`）/ `openai`（`--extra openai`） |
 | 切り替え後のインデックス | 初期化される。ベクトルの次元や意味空間がモデルごとに異なるため。文書の再取り込みが必要 |
 | 切り替えに失敗した場合 | 400 を返し、元のインデックスはそのまま残る（認証情報不足、未インストールの extra など） |
+| Ollama のモデルが未取得の場合 | 切り替え自体は 200 で成功するが、モデルの存在は確認されない。次の取り込みが 500（`Indexing failed while embedding the document.`）になる。事前に `ollama pull <model>` を実行し、`ollama list` で確認する |
 | `X-Admin-Token` | `ADMIN_API_KEY` を設定しているときだけ必要 |
 | チャンク分割の設定 | 埋め込みモデルの上限が変わる場合は、`CHUNK_TOKENIZER` / `CHUNK_MAX_TOKENS` も合わせて再起動する |
 
@@ -158,9 +159,14 @@ curl -s http://127.0.0.1:8000/health
 | 413 | `MAX_UPLOAD_SIZE_MB` 超過 | 上限を上げるか、ファイルを分割する |
 | 500 | Docling の解析失敗（破損・暗号化 PDF、Tesseract 未インストール など） | サーバログを確認する |
 | 503 | Ollama に接続できない | `ollama serve` と `OLLAMA_BASE_URL` を確認し、`ollama list` にモデルがあるか確認する |
-| 504 | `QUERY_TIMEOUT_SECONDS` 超過 | CPU 推論時はタイムアウトを延ばすか、`top_k` を減らす |
+| 504 | `QUERY_TIMEOUT_SECONDS` 超過（既定 120 秒） | `QUERY_TIMEOUT_SECONDS` と `OLLAMA_REQUEST_TIMEOUT` を延ばす（例: 600）。`top_k` を減らしても短縮できる |
 
 ### よくある質問
+
+**質問が 504 になる（GPU でも起こる）**
+Granite 4.2 は思考トークンを含めて 1 回の回答に約 1000 トークンを生成することがあります。
+Apple Silicon の実測では約 10 tok/s で、回答 1 件に約 100 秒かかり、既定の 120 秒に収まらない場合がありました。
+`.env` に `QUERY_TIMEOUT_SECONDS=600` と `OLLAMA_REQUEST_TIMEOUT=600` を設定してください。
 
 **回答に推論過程（thinking）が混ざる**
 Granite 4.2 は思考モードを持つモデルです（[IBM Granite 4.2](https://www.ibm.com/granite/docs/models/granite4-2)）。
