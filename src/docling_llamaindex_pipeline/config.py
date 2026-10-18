@@ -144,7 +144,7 @@ class Settings(BaseSettings):
 
     openai_api_key: SecretStr | None = None
     openai_embed_model: str = "text-embedding-3-small"
-    openai_llm_model: str = "gpt-4o-mini"
+    openai_llm_model: str = "gpt-6-sol"
 
     anthropic_api_key: SecretStr | None = None
     anthropic_llm_model: str = "claude-opus-5-5"
