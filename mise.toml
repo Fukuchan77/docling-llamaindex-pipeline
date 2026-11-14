@@ -42,22 +42,15 @@ run = "uv run pytest --cov --cov-report=xml --cov-report=term"
 [tasks.audit]
 # Audits the exact locked set (all extras + dev group) exported from uv.lock, via
 # `uvx`, so the audit needs no project sync (no multi-GB torch install) and a
-# dev-only tool cannot mask or add findings.
-#
-# PYSEC-2026-3740 (nltk 3.10.3, a llama-index-core transitive): NLTK's model
-# import/export helpers bypass its path-security checks. Not reachable here:
-# the advisory requires an app that enables pathsec enforcement *and* lets
-# untrusted input choose a model import/export path, and src/ imports no nltk
-# symbol at all. There is no fixed release to upgrade to (3.10.3 is the latest
-# on PyPI). Same call as pydantic-ai-sandbox's rag / llamaindex lanes. Review by
-# 2026-11-05; remove the moment nltk ships a fix.
+# dev-only tool cannot mask or add findings. No advisory is ignored; adding an
+# `--ignore-vuln` needs a rationale and a review-by date next to it.
 description = "pip-audit of the locked dependency set (PyPI advisory DB)."
 run = """
 set -e
 req="$(mktemp)"
 trap 'rm -f "$req"' EXIT
 uv export --frozen --all-extras --no-emit-project --format requirements-txt -o "$req" >/dev/null
-uvx --from "pip-audit>=2.10.1,<3" pip-audit --strict --disable-pip --no-deps -r "$req" --ignore-vuln PYSEC-2026-3740
+uvx --from "pip-audit>=2.10.1,<3" pip-audit --strict --disable-pip --no-deps -r "$req"
 """
 
 [tasks."check:static"]
