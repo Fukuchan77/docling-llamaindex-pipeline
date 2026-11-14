@@ -40,7 +40,8 @@ file covers commands, invariants, and the "why" behind non-obvious choices.
   cause chain (`is_model_server_unreachable`) and map to 503.
 - FastAPI evaluates route annotations at runtime, so `api/**` is exempt from ruff's TC00x rules.
 - `starlette.testclient` needs `httpx2` (dev dependency) for typed, warning-free tests.
-- `mise run audit` ignores PYSEC-2026-3740 (nltk, unreachable, no fix release) — review by 2026-11-05.
+- `mise run audit` ignores no advisory (the nltk PYSEC-2026-3740 ignore was dropped once nltk
+  3.10.4 shipped the fix); any new `--ignore-vuln` needs a rationale and a review-by date.
 - Chunking defaults to `HybridChunker` with the embedding model's HF tokenizer (512 tokens for
   `granite-embedding:278m`), loaded at startup; unit tests use `CHUNKER=hierarchical` or a fake
   `BaseTokenizer`. Startup fails loudly if the tokenizer cannot be loaded.
